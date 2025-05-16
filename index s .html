@@ -1,0 +1,151 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shivexa</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <img src="logo.png" alt="Shivexa Logo">
+            </div>
+            <div class="cart">
+                <a href="cart.html">
+                    <img src="cart-icon.png" alt="Cart">
+                    <span>0</span>
+                </a>
+            </div>
+            <div class="search">
+                <input type="text" placeholder="Search...">
+                <button>Search</button>
+            </div>
+        </nav>
+    </header>
+
+    <nav class="menu">
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="categories.html">Categories</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="career.html">Career</a></li>
+            <li><a href="help.html">Help</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero">
+        <div class="banner">
+            <img src="mens-collection.jpg" alt="New Arrivals in Men's Collection">
+            <p>New Arrivals in Men's Collection</p>
+        </div>
+        <div class="banner">
+            <img src="womens-sale.jpg" alt="Women's Winter Sale Now Live">
+            <p>Women's Winter Sale Now Live</p>
+        </div>
+        <div class="banner">
+            <img src="kids-collection.jpg" alt="Kids' Summer Collection Launched">
+            <p>Kids' Summer Collection Launched</p>
+        </div>
+        <div class="banner">
+            <img src="poem-books.jpg" alt="Poetry Books at 20% Off">
+            <p>Poetry Books at 20% Off</p>
+        </div>
+        <div class="banner">
+            <img src="story-collections.jpg" alt="Explore New Story Collections">
+            <p>Explore New Story Collections</p>
+        </div>
+    </section>
+
+    <section class="news">
+        <p>Latest News: <span>New Men's Collection Launched! | Women's Sale Up to 50% Off | Kids' Summer Deals | Poem Books Now Available | Story Collections at Discount</span></p>
+    </section>
+
+    <section class="categories">
+        <h2>Book Categories</h2>
+        <div class="category-list">
+            <div class="category">
+                <img src="men-books.jpg" alt="Men">
+                <p>Men</p>
+            </div>
+            <div class="category">
+                <img src="women-books.jpg" alt="Women">
+                <p>Women</p>
+            </div>
+            <div class="category">
+                <img src="kids-books.jpg" alt="Kids">
+                <p>Kids</p>
+            </div>
+            <div class="category">
+                <img src="poem-books.jpg" alt="Poem">
+                <p>Poem</p>
+            </div>
+            <div class="category">
+                <img src="story-books.jpg" alt="Story">
+                <p>Story</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="contact">
+            <h3>Contact Us</h3>
+            <p>Phone: +1-234-567-890</p>
+            <p>Email: [email protected]</p>
+        </div>
+        <div class="links">
+            <h3>Links</h3>
+            <a href="career.html">Career</a>
+            <a href="help.html">Help</a>
+        </div>
+        <div class="social">
+            <h3>Follow Us</h3>
+            <div class="social-media">
+                <a href="https://facebook.com"><img src="facebook.png" alt="Facebook"></a>
+                <a href="https://twitter.com"><img src="twitter.png" alt="Twitter"></a>
+                <a href="https://instagram.com"><img src="instagram.png" alt="Instagram"></a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
