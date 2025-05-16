@@ -1,4 +1,4 @@
-import React from 'react';
+toimport React from 'react';
 import { trackClick } from '../utils/trackClick';
 
 const AffiliateBookCard = ({ book }) => {
