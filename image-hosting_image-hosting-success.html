@@ -1,0 +1,113 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Shivexa Image Hosting Setup Confirmation - Cloudinary is successfully configured.">
+    <title>Shivexa - Image Hosting Setup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex flex-col">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-center">
+            <img src="/assets/logo.png" alt="Shivexa Logo" class="h-10">
+        </div>
+    </header>
+    <main class="flex-grow max-w-3xl mx-auto px-4 py-8 w-full">
+        <div class="bg-white rounded-lg shadow-lg p-6 md:p-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-green-800 mb-6 text-center">
+                Image Hosting Successfully Configured!
+            </h1>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Overview</h2>
+                <p class="text-gray-600">
+                    Shivexa’s image hosting is now powered by Cloudinary, a robust and secure platform for managing images. Your setup is complete, and all images for books, banners, and user profiles will be hosted seamlessly.
+                </p>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Benefits</h2>
+                <ul class="list-disc pl-6 text-gray-600">
+                    <li><strong>Fast Loading:</strong> Optimized image delivery with global CDN for quick page loads.</li>
+                    <li><strong>Scalability:</strong> Easily handle thousands of images without performance degradation.</li>
+                    <li><strong>Security:</strong> Secure storage with HTTPS delivery and access controls.</li>
+                </ul>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Instructions & Notes</h2>
+                <p class="text-gray-600">
+                    To use the image hosting service:
+                </p>
+                <ul class="list-disc pl-6 text-gray-600">
+                    <li>Upload images via the Shivexa admin panel or API using your Cloudinary credentials.</li>
+                    <li>Ensure images are optimized (e.g., JPEG, max 2MB) for best performance.</li>
+                    <li>Contact <a href="mailto:support@shivexa.com" class="text-green-800 hover:underline">support@shivexa.com</a> for API documentation or assistance.</li>
+                </ul>
+                <p class="text-gray-600 mt-4">
+                    <strong>Note:</strong> Regularly review your Cloudinary usage to stay within allocated limits.
+                </p>
+            </section>
+            <div class="text-center">
+                <a href="/public/dashboard.html"
+                   class="inline-block bg-green-800 text-white font-semibold py-3 px-6 rounded-full hover:bg-green-700 transition-all duration-300 ease-in-out"
+                   role="button">
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </main>
+    <footer class="bg-white py-4 text-center text-gray-600">
+        <div class="max-w-7xl mx-auto px-4">
+            <p class="text-sm">
+                © 2025 Shivexa. All rights reserved. 
+                <a href="/public/privacy.html" class="text-green-800 hover:underline">Privacy Policy</a> | 
+                <a href="/public/terms.html" class="text-green-800 hover:underline">Terms & Conditions</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
