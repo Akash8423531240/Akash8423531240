@@ -1,0 +1,148 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Payment successful! Thank you for your purchase at Shivexa.">
+    <title>Shivexa - Payment Successful</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a3c34, #2a4d47);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle gold shimmer overlay */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 30% 30%, rgba(212, 175, 55, 0.1), transparent 50%);
+            pointer-events: none;
+        }
+
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes drawCheck {
+            0% { stroke-dashoffset: 100; }
+            100% { stroke-dashoffset: 0; }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+
+        .animate-slideUp {
+            animation: slideUp 0.6s ease-out forwards;
+        }
+
+        .check-path {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: drawCheck 0.5s ease-out forwards 0.3s;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <main class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 max-w-md w-full animate-fadeIn" role="main">
+        <!-- Success Icon -->
+        <div class="flex justify-center mb-6">
+            <svg class="w-16 h-16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="#22c55e" stroke-width="2"/>
+                <path class="check-path" d="M8 12l3 3 5-6" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <!-- Heading -->
+        <h1 class="text-3xl md:text-4xl font-bold text-white text-center mb-4 animate-slideUp" style="animation-delay: 0.1s;">
+            Payment Successful!
+        </h1>
+        <!-- Subtext -->
+        <p class="text-gray-200 text-center text-lg mb-4 animate-slideUp" style="animation-delay: 0.2s;">
+            Thank you for your purchase at ShivExa. Your payment has been securely processed.
+        </p>
+        <!-- Order Details -->
+        <p class="text-gray-300 text-center text-sm mb-8 animate-slideUp" style="animation-delay: 0.3s;">
+            Order ID: #SHVX78945 | ₹1,299
+        </p>
+        <!-- Buttons -->
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+            <a href="/public/invoice.pdf"
+               class="bg-yellow-600 text-gray-900 font-semibold py-3 px-6 rounded-full hover:bg-yellow-500 hover:shadow-lg hover:shadow-yellow-600/50 transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-slideUp"
+               style="animation-delay: 0.4s;"
+               role="button">
+                Download Invoice
+            </a>
+            <a href="/public/index.html"
+               class="bg-green-800 text-white font-semibold py-3 px-6 rounded-full hover:bg-green-700 hover:-translate-y-1 transition-all duration-300 ease-in-out animate-slideUp"
+               style="animation-delay: 0.5s;"
+               role="button">
+                Continue Shopping
+            </a>
+        </div>
+    </main>
+
+    <script>
+        // Trigger animations on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelector('main').classList.add('animate-fadeIn');
+            document.querySelectorAll('.animate-slideUp').forEach((el, index) => {
+                el.style.animationDelay = `${0.1 * (index + 1)}s`;
+            });
+        });
+    </script>
+</body>
+</html>
