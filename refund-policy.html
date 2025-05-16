@@ -1,0 +1,132 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Shivexa Refund Policy - Understand our guidelines for refunds and returns.">
+    <title>Shivexa - Refund Policy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Fixed Header */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 10;
+        }
+
+        /* Ensure content isn't hidden under fixed header */
+        main {
+            margin-top: 80px; /* Adjust based on header height */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-center">
+            <img src="/assets/logo.png" alt="Shivexa Logo" class="h-10">
+        </div>
+    </header>
+    <main class="flex-grow max-w-3xl mx-auto px-4 py-8 w-full">
+        <div class="bg-white rounded-lg shadow-lg p-6 md:p-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-green-800 mb-6 text-center">
+                Refund Policy
+            </h1>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Introduction</h2>
+                <p class="text-gray-600">
+                    At Shivexa, we strive to ensure your satisfaction with every purchase. This Refund Policy outlines the conditions under which refunds are available for physical and digital books purchased through our platform.
+                </p>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Eligibility for Refund</h2>
+                <ul class="list-disc pl-6 text-gray-600">
+                    <li>Physical books are eligible for refunds if returned within 14 days of delivery, provided they are unused and in original condition.</li>
+                    <li>Digital books (e-books) are non-refundable unless there is a technical issue preventing access.</li>
+                    <li>Refunds are not applicable for promotional or discounted items unless defective.</li>
+                </ul>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Refund Process</h2>
+                <p class="text-gray-600">
+                    To request a refund, please follow these steps:
+                </p>
+                <ol class="list-decimal pl-6 text-gray-600">
+                    <li>Contact our support team at <a href="mailto:support@shivexa.com" class="text-green-800 hover:underline">support@shivexa.com</a> with your order details.</li>
+                    <li>For physical books, return the item to the provided address with proof of purchase.</li>
+                    <li>Our team will review your request and notify you of the refund status within 5-7 business days.</li>
+                </ol>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Timeframe</h2>
+                <p class="text-gray-600">
+                    Refunds for eligible physical books are processed within 7-10 business days after we receive the returned item. For digital book issues, refunds (if approved) are issued within 3-5 business days. Funds will be credited to your original payment method.
+                </p>
+            </section>
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold text-green-800 mb-4">Contact Information</h2>
+                <p class="text-gray-600">
+                    For any questions or assistance with refunds, please reach out to us:
+                </p>
+                <ul class="list-disc pl-6 text-gray-600">
+                    <li>Email: <a href="mailto:support@shivexa.com" class="text-green-800 hover:underline">support@shivexa.com</a></li>
+                    <li>Phone: +1-234-567-890</li>
+                </ul>
+            </section>
+        </div>
+    </main>
+    <footer class="bg-white py-4 text-center text-gray-600">
+        <div class="max-w-7xl mx-auto px-4">
+            <p class="text-sm">
+                © 2025 Shivexa. All rights reserved. 
+                <a href="/public/privacy.html" class="text-green-800 hover:underline">Privacy Policy</a> | 
+                <a href="/public/terms.html" class="text-green-800 hover:underline">Terms & Conditions</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
