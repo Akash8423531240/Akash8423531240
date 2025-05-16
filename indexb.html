@@ -1,0 +1,297 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Page Title and Meta Tags -->
+    <title>Shivexa - Online Bookstore</title>
+    <meta name="description" content="Buy books for Men, Women, Kids, Poems and Stories at Shivexa. Your trusted online book hub.">
+    <meta name="keywords" content="books, Shivexa, online bookstore, men books, kids stories, poems">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://shivexa.com">
+
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="Shivexa - Online Bookstore">
+    <meta property="og:description" content="Explore books for all – Men, Women, Kids, Poems & Stories at Shivexa.">
+    <meta property="og:image" content="https://shivexa.com/banner.jpg">
+    <meta property="og:url" content="https://shivexa.com">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Shivexa - Online Bookstore">
+    <meta name="twitter:description" content="Shop latest books for everyone – only at Shivexa.">
+    <meta name="twitter:image" content="https://shivexa.com/banner.jpg">
+
+    <!-- Favicon and Viewport -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Shivexa",
+      "url": "https://shivexa.com",
+      "logo": "https://shivexa.com/logo.png",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+1-234-567-890",
+        "contactType": "customer service",
+        "email": "[email protected]"
+      },
+      "sameAs": [
+        "https://facebook.com",
+        "https://twitter.com",
+        "https://instagram.com"
+      ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Book",
+      "name": "Men's Collection Book",
+      "author": {
+        "@type": "Person",
+        "name": "Various Authors"
+      },
+      "description": "A curated collection of books for men, featuring adventure, history, and more.",
+      "offers": {
+        "@type": "Offer",
+        "price": "19.99",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "image": "https://shivexa.com/mens-collection.jpg",
+      "url": "https://shivexa.com/categories/men"
+    }
+    </script>
+
+    <!-- Existing PWA and Styles -->
+    <link rel="manifest" href="/public/manifest.json">
+    <meta name="theme-color" content="#1f2937">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header Section -->
+    <header>
+        <nav class="flex items-center justify-between p-4 bg-gray-800 text-white">
+            <div class="logo">
+                <img src="/assets/logo.png" alt="Shivexa Logo" class="h-10">
+            </div>
+            <div class="cart">
+                <a href="/cart.html" class="flex items-center">
+                    <img src="/assets/cart-icon.png" alt="Cart" class="h-6 mr-2">
+                    <span>0</span>
+                </a>
+            </div>
+            <div class="search">
+                <input type="text" placeholder="Search..." class="p-2 rounded-l">
+                <button class="p-2 bg-blue-600 rounded-r">Search</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Install App Button -->
+    <section class="install-app p-4 text-center">
+        <button id="install-button" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 hidden">
+            Install Shivexa App
+        </button>
+    </section>
+
+    <!-- Menu Navigation -->
+    <nav class="menu bg-gray-100 p-4">
+        <ul class="flex justify-center space-x-6">
+            <li><a href="/index.html" class="text-blue-600">Home</a></li>
+            <li><a href="/categories.html">Categories</a></li>
+            <li><a href="/contact.html">Contact</a></li>
+            <li><a href="/career.html">Career</a></li>
+            <li><a href="/help.html">Help</a></li>
+        </ul>
+    </nav>
+
+    <!-- Hero Banner Section -->
+    <section class="hero grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+        <div class="banner">
+            <img src="/assets/mens-collection.jpg" alt="New Arrivals in Men's Collection" class="w-full h-48 object-cover">
+            <p class="text-center mt-2">New Arrivals in Men's Collection</p>
+        </div>
+        <div class="banner">
+            <img src="/assets/womens-sale.jpg" alt="Women's Winter Sale Now Live" class="w-full h-48 object-cover">
+            <p class="text-center mt-2">Women's Winter Sale Now Live</p>
+        </div>
+        <div class="banner">
+            <img src="/assets/kids-collection.jpg" alt="Kids' Summer Collection Launched" class="w-full h-48 object-cover">
+            <p class="text-center mt-2">Kids' Summer Collection Launched</p>
+        </div>
+    </section>
+
+    <!-- News Slider Section -->
+    <section class="news bg-gray-100 p-4">
+        <div class="relative w-full h-20 overflow-hidden shadow-md">
+            <div id="news-slider" class="flex transition-transform duration-500 ease-in-out">
+                <div class="min-w-full flex items-center justify-center p-4">
+                    <img src="https://via.placeholder.com/50" alt="News 1" class="h-12 w-12 object-cover rounded-full mr-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">New Men's Collection Launched!</h3>
+                        <p class="text-sm text-gray-600">Explore the latest arrivals.</p>
+                    </div>
+                </div>
+                <div class="min-w-full flex items-center justify-center p-4">
+                    <img src="https://via.placeholder.com/50" alt="News 2" class="h-12 w-12 object-cover rounded-full mr-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Women's Sale Up to 50% Off</h3>
+                        <p class="text-sm text-gray-600">Shop now for great deals.</p>
+                    </div>
+                </div>
+                <div class="min-w-full flex items-center justify-center p-4">
+                    <img src="https://via.placeholder.com/50" alt="News 3" class="h-12 w-12 object-cover rounded-full mr-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Kids' Summer Deals</h3>
+                        <p class="text-sm text-gray-600">New collections for kids.</p>
+                    </div>
+                </div>
+            </div>
+            <button id="prev-slide" class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white p-2 rounded-full hover:bg-gray-700">‹</button>
+            <button id="next-slide" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-800 text-white p-2 rounded-full hover:bg-gray-700">›</button>
+        </div>
+    </section>
+
+    <!-- Categories Section -->
+    <section class="categories p-4">
+        <h2 class="text-2xl font-bold text-center mb-4">Book Categories</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="category">
+                <img src="/assets/men-books.jpg" alt="Men" class="w-full h-32 object-cover">
+                <p class="text-center mt-2">Men</p>
+            </div>
+            <div class="category">
+                <img src="/assets/women-books.jpg" alt="Women" class="w-full h-32 object-cover">
+                <p class="text-center mt-2">Women</p>
+            </div>
+            <div class="category">
+                <img src="/assets/kids-books.jpg" alt="Kids" class="w-full h-32 object-cover">
+                <p class="text-center mt-2">Kids</p>
+            </div>
+            <div class="category">
+                <img src="/assets/poem-books.jpg" alt="Poem" class="w-full h-32 object-cover">
+                <p class="text-center mt-2">Poem</p>
+            </div>
+            <div class="category">
+                <img src="/assets/story-books.jpg" alt="Story" class="w-full h-32 object-cover">
+                <p class="text-center mt-2">Story</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="contact">
+            <h3 class="text-xl font-bold">Contact Us</h3>
+            <p>Phone: +1-234-567-890</p>
+            <p>Email: [email protected]</p>
+        </div>
+        <div class="links">
+            <h3 class="text-xl font-bold">Links</h3>
+            <a href="/career.html" class="block">Career</a>
+            <a href="/help.html" class="block">Help</a>
+        </div>
+        <div class="social">
+            <h3 class="text-xl font-bold">Follow Us</h3>
+            <div class="social-media flex space-x-4">
+                <a href="https://facebook.com"><img src="/assets/facebook.png" alt="Facebook" class="h-6"></a>
+                <a href="https://twitter.com"><img src="/assets/twitter.png" alt="Twitter" class="h-6"></a>
+                <a href="https://instagram.com"><img src="/assets/instagram.png" alt="Instagram" class="h-6"></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Service Worker and Install Prompt Script -->
+    <script src="/assets/news-slider.js"></script>
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/public/service-worker.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered:', registration);
+                    })
+                    .catch((error) => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+
+        // Install Prompt
+        let deferredPrompt;
+        const installButton = document.getElementById('install-button');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installButton.classList.remove('hidden');
+        });
+
+        installButton.addEventListener('click', () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                    installButton.classList.add('hidden');
+                });
+            }
+        });
+
+        // Handle app installed event
+        window.addEventListener('appinstalled', () => {
+            console.log('Shivexa PWA installed');
+            installButton.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
