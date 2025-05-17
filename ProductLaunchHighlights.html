@@ -1,0 +1,694 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Launch Highlights</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6/dist/umd/react-router-dom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { BrowserRouter, Routes, Route, Link, useNavigate } = ReactRouterDOM;
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            // Replace with your Firebase config
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        let app, auth, db, storage;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            storage = firebase.storage();
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+        }
+
+        // Utility Functions
+        const uploadFile = async (file, path) => {
+            try {
+                if (!storage) throw new Error("Storage not initialized");
+                const storageRef = storage.ref(path);
+                await storageRef.put(file);
+                return await storageRef.getDownloadURL();
+            } catch (error) {
+                console.error("File upload failed:", error);
+                throw error;
+            }
+        };
+
+        // Auth Context
+        const AuthContext = React.createContext();
+
+        const AuthProvider = ({ children }) => {
+            const [user, setUser] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+
+            React.useEffect(() => {
+                if (!auth) {
+                    console.error("Auth not initialized");
+                    setLoading(false);
+                    return;
+                }
+                const unsubscribe = auth.onAuthStateChanged(
+                    (user) => {
+                        setUser(user);
+                        setLoading(false);
+                    },
+                    (error) => {
+                        console.error("Auth state change error:", error);
+                        setLoading(false);
+                    }
+                );
+                return () => unsubscribe();
+            }, []);
+
+            return (
+                <AuthContext.Provider value={{ user, loading }}>
+                    {children}
+                </AuthContext.Provider>
+            );
+        };
+
+        // Company Register Component
+        const CompanyRegister = () => {
+            const [form, setForm] = React.useState({
+                companyName: '',
+                email: '',
+                description: '',
+                website: ''
+            });
+            const [password, setPassword] = React.useState('');
+            const [file, setFile] = React.useState(null);
+            const [error, setError] = React.useState('');
+            const navigate = useNavigate();
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+                if (!auth || !db || !storage) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const userCredential = await auth.createUserWithEmailAndPassword(form.email, password);
+                    const user = userCredential.user;
+                    let logoURL = '';
+                    if (file) {
+                        logoURL = await uploadFile(file, `company_logos/${user.uid}`);
+                    }
+                    await db.collection('companies').doc(user.uid).set({
+                        ...form,
+                        logoURL,
+                        verificationBadge: false,
+                        createdAt: new Date()
+                    });
+                    await user.sendEmailVerification();
+                    alert('Registration successful! Please verify your email and wait for admin approval.');
+                    navigate('/company/login');
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
+                        <h2 className="text-2xl font-bold text-center">Company Registration</h2>
+                        {error && <p className="text-red-500">{error}</p>}
+                        <div className="space-y-6">
+                            <input
+                                type="text"
+                                value={form.companyName}
+                                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                                placeholder="Company Name"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                placeholder="Email"
+                                className="w-full p-2 border rounded"
+                            />
+                            <textarea
+                                value={form.description}
+                                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                placeholder="Company Description"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="url"
+                                value={form.website}
+                                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                                placeholder="Website"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setFile(e.target.files[0])}
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value })}
+                                placeholder="Password"
+                                className="w-full p-2 border rounded"
+                            />
+                            <button
+                                onClick={handleRegister}
+                                className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                            >
+                                Register
+                            </button>
+                            <p className="text-center">
+                                Already registered? <Link to="/company/login" className="text-blue-600">Login</Link>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Company Login Component
+        const CompanyLogin = () => {
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+            const navigate = useNavigate();
+            const { loading } = React.useContext(AuthContext);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                if (!auth || !db) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                    const companyDoc = await db.collection('companies').doc(userCredential.user.uid).get();
+                    if (!companyDoc.exists || !companyDoc.data().verificationBadge) {
+                        await auth.signOut();
+                        setError('Your company is not verified or does not exist.');
+                        return;
+                    }
+                    navigate('/company/dashboard');
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            if (loading) return <div className="text-center p-4">Loading...</div>;
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
+                        <h2 className="text-2xl font-bold text-center">Company Login</h2>
+                        {error && <p className="text-red-500">{error}</p>}
+                        <div className="space-y-6">
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Email"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Password"
+                                className="w-full p-2 border rounded"
+                            />
+                            <button
+                                onClick={handleLogin}
+                                className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                            >
+                                Login
+                            </button>
+                            <p className="text-center">
+                                New company? <Link to="/company/register" className="text-blue-600">Register</Link>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Product Launch Upload Component
+        const ProductLaunchUpload = () => {
+            const { user } = React.useContext(AuthContext);
+            const [form, setForm] = React.useState({
+                productName: '',
+                description: '',
+                launchDate: '',
+                purchaseLink: '',
+                category: ''
+            });
+            const [file, setFile] = React.useState(null);
+            const [error, setError] = React.useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!form.productName || !form.launchDate || !form.purchaseLink || !file) {
+                    setError('Product Name, Launch Date, Purchase Link, and Image are required');
+                    return;
+                }
+                if (!db || !storage) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const imageURL = await uploadFile(file, `product_images/${user.uid}/${Date.now()}`);
+                    await db.collection('products').add({
+                        ...form,
+                        imageURL,
+                        companyId: user.uid,
+                        createdAt: new Date()
+                    });
+                    alert('Product launch uploaded successfully');
+                    setForm({
+                        productName: '',
+                        description: '',
+                        launchDate: '',
+                        purchaseLink: '',
+                        category: ''
+                    });
+                    setFile(null);
+                    setError('');
+                } catch (err) {
+                    setError('Error uploading product: ' + err.message);
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <h2 className="text-2xl font-bold mb-4">Upload Product Launch</h2>
+                    {error && <p className="text-red-500">{error}</p>}
+                    <div className="space-y-4">
+                        <input
+                            type="text"
+                            value={form.productName}
+                            onChange={(e) => setForm({ ...form, productName: e.target.value })}
+                            placeholder="Product Name"
+                            className="w-full p-2 border rounded"
+                        />
+                        <textarea
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            placeholder="Short Description (Optional)"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="date"
+                            value={form.launchDate}
+                            onChange={(e) => setForm({ ...form, launchDate: e.target.value })}
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="url"
+                            value={form.purchaseLink}
+                            onChange={(e) => setForm({ ...form, purchaseLink: e.target.value })}
+                            placeholder="Official Purchase Link"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="text"
+                            value={form.category}
+                            onChange={(e) => setForm({ ...form, category: e.target.value })}
+                            placeholder="Category (e.g., Tech, Fashion)"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="w-full p-2 border rounded"
+                        />
+                        <button
+                            onClick={handleSubmit}
+                            className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                        >
+                            Upload Product
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Product Slider Component
+        const ProductSlider = () => {
+            const [products, setProducts] = React.useState([]);
+            const [isPaused, setIsPaused] = React.useState(false);
+            const [filterCategory, setFilterCategory] = React.useState('');
+            const [filterDate, setFilterDate] = React.useState('');
+            const sliderRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (!db) {
+                    console.error("Firestore not initialized");
+                    return;
+                }
+                let query = db.collection('products').orderBy('createdAt', 'desc').limit(20);
+                if (filterCategory) {
+                    query = query.where('category', '==', filterCategory);
+                }
+                if (filterDate) {
+                    query = query.where('launchDate', '==', filterDate);
+                }
+
+                const unsubscribe = query.onSnapshot(
+                    async (snapshot) => {
+                        const productsData = await Promise.all(snapshot.docs.map(async (doc) => {
+                            const product = { id: doc.id, ...doc.data() };
+                            const companyDoc = await db.collection('companies').doc(product.companyId).get();
+                            return { ...product, company: companyDoc.exists ? companyDoc.data() : {} };
+                        }));
+                        setProducts(productsData);
+                    },
+                    (error) => console.error("Products fetch error:", error)
+                );
+
+                // Auto-scroll logic (left-to-right)
+                const scrollInterval = setInterval(() => {
+                    if (!isPaused && sliderRef.current) {
+                        const { scrollLeft, clientWidth, scrollWidth } = sliderRef.current;
+                        if (scrollLeft + clientWidth >= scrollWidth) {
+                            sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                        } else {
+                            sliderRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                        }
+                    }
+                }, 3000);
+
+                return () => {
+                    unsubscribe();
+                    clearInterval(scrollInterval);
+                };
+            }, [filterCategory, filterDate]);
+
+            return (
+                <div className="bg-gray-100 py-4">
+                    <div className="max-w-7xl mx-auto px-4">
+                        <h2 className="text-2xl font-bold mb-4">Product Launch Highlights</h2>
+                        <div className="flex space-x-4 mb-4">
+                            <input
+                                type="text"
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                                placeholder="Filter by Category"
+                                className="p-2 border rounded"
+                            />
+                            <input
+                                type="date"
+                                value={filterDate}
+                                onChange={(e) => setFilterDate(e.target.value)}
+                                className="p-2 border rounded"
+                            />
+                        </div>
+                        <div
+                            className="overflow-hidden"
+                            onMouseEnter={() => setIsPaused(true)}
+                            onMouseLeave={() => setIsPaused(false)}
+                        >
+                            <div
+                                ref={sliderRef}
+                                className="flex space-x-4 overflow-x-auto scrollbar-hide"
+                                style={{ scrollBehavior: 'smooth' }}
+                            >
+                                {products.map(product => (
+                                    <a
+                                        key={product.id}
+                                        href={product.purchaseLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-shrink-0 w-80 p-4 bg-white rounded-lg shadow hover:shadow-lg transition relative group"
+                                    >
+                                        <img
+                                            src={product.imageURL}
+                                            alt={product.productName}
+                                            className="w-full h-40 object-cover rounded lazy"
+                                            loading="lazy"
+                                        />
+                                        <div className="mt-2">
+                                            <img
+                                                src={product.company.logoURL || 'https://via.placeholder.com/50'}
+                                                alt={product.company.companyName}
+                                                className="w-8 h-8 rounded-full inline-block mr-2"
+                                            />
+                                            <span className="text-sm text-gray-600">{product.company.companyName}</span>
+                                        </div>
+                                        <h3 className="text-lg font-semibold">{product.productName}</h3>
+                                        <p className="text-sm text-gray-500">Launch: {product.launchDate}</p>
+                                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm p-2 rounded shadow-lg z-10">
+                                            {product.description || 'No description available'}
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Company Dashboard Component
+        const CompanyDashboard = () => {
+            const { user, loading } = React.useContext(AuthContext);
+            const [products, setProducts] = React.useState([]);
+
+            React.useEffect(() => {
+                if (!user || !db) return;
+                const unsubscribe = db.collection('products')
+                    .where('companyId', '==', user.uid)
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(
+                        (snapshot) => {
+                            const productsData = snapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            setProducts(productsData);
+                        },
+                        (error) => console.error("Products fetch error:", error)
+                    );
+                return () => unsubscribe();
+            }, [user]);
+
+            if (loading) return <div className="text-center p-4">Loading...</div>;
+            if (!user) return <CompanyLogin />;
+
+            return (
+                <div className="max-w-7xl mx-auto p-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold">Company Dashboard</h2>
+                        <button
+                            onClick={() => auth.signOut()}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                    <ProductLaunchUpload />
+                    <div className="mt-8">
+                        <h3 className="text-xl font-bold mb-4">Your Product Launches</h3>
+                        <div className="grid grid-cols-1 gap-4">
+                            {products.map(product => (
+                                <div key={product.id} className="border p-4 rounded-lg">
+                                    <h4 className="text-lg font-semibold">{product.productName}</h4>
+                                    <p className="text-gray-600">{product.description}</p>
+                                    <p className="text-sm">Launch Date: {product.launchDate}</p>
+                                    <p className="text-sm">Category: {product.category || 'N/A'}</p>
+                                    <a
+                                        href={product.purchaseLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline"
+                                    >
+                                        Purchase Link
+                                    </a>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Admin Dashboard Component (for approving companies)
+        const AdminDashboard = () => {
+            const [companies, setCompanies] = React.useState([]);
+            const [error, setError] = React.useState('');
+
+            React.useEffect(() => {
+                if (!db) {
+                    setError("Firestore not initialized");
+                    return;
+                }
+                const unsubscribe = db.collection('companies')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(
+                        (snapshot) => {
+                            const companiesData = snapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            setCompanies(companiesData);
+                        },
+                        (error) => setError("Companies fetch error: " + error.message)
+                    );
+                return () => unsubscribe();
+            }, []);
+
+            const handleVerify = async (companyId, verificationBadge) => {
+                try {
+                    if (!db) throw new Error("Firestore not initialized");
+                    await db.collection('companies').doc(companyId).update({ verificationBadge });
+                    alert(`Company ${verificationBadge ? 'verified' : 'unverified'}`);
+                } catch (err) {
+                    alert('Error updating verification: ' + err.message);
+                }
+            };
+
+            if (error) return <div className="text-center p-4 text-red-500">{error}</div>;
+
+            return (
+                <div className="max-w-7xl mx-auto p-4">
+                    <h2 className="text-2xl font-bold mb-4">Admin Dashboard</h2>
+                    <h3 className="text-xl font-bold mb-2">Manage Companies</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        {companies.map(company => (
+                            <div key={company.id} className="border p-4 rounded-lg flex justify-between items-center">
+                                <div className="flex items-center">
+                                    <img
+                                        src={company.logoURL || 'https://via.placeholder.com/50'}
+                                        alt={company.companyName}
+                                        className="w-8 h-8 rounded-full mr-2"
+                                    />
+                                    <div>
+                                        <h4 className="text-lg font-semibold">{company.companyName}</h4>
+                                        <p className="text-sm text-gray-600">{company.email}</p>
+                                        <p className="text-sm">Verified: {company.verificationBadge ? 'Yes' : 'No'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => handleVerify(company.id, true)}
+                                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                                    >
+                                        Verify
+                                    </button>
+                                    <button
+                                        onClick={() => handleVerify(company.id, false)}
+                                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                                    >
+                                        Unverify
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // Error Boundary
+        class ErrorBoundary extends React.Component {
+            state = { error: null };
+            static getDerivedStateFromError(error) {
+                return { error: error.message };
+            }
+            render() {
+                if (this.state.error) {
+                    return <div className="text-center p-4 text-red-500">Error: {this.state.error}</div>;
+                }
+                return this.props.children;
+            }
+        }
+
+        // Main App Component
+        const App = () => {
+            return (
+                <BrowserRouter>
+                    <ProductSlider />
+                    <Routes>
+                        <Route path="/company/register" element={<CompanyRegister />} />
+                        <Route path="/company/login" element={<CompanyLogin />} />
+                        <Route path="/company/dashboard" element={<CompanyDashboard />} />
+                        <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="/" element={<div className="text-center p-4">Welcome to Product Launches</div>} />
+                    </Routes>
+                </BrowserRouter>
+            );
+        };
+
+        // Render
+        ReactDOM.render(
+            <ErrorBoundary>
+                <AuthProvider>
+                    <App />
+                </AuthProvider>
+            </ErrorBoundary>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
