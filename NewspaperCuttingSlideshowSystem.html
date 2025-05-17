@@ -1,0 +1,606 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newspaper Cutting Slideshow</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6/dist/umd/react-router-dom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { BrowserRouter, Routes, Route, Link, useParams, useNavigate } = ReactRouterDOM;
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            // Replace with your Firebase config
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        let app, auth, db, storage;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            storage = firebase.storage();
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+        }
+
+        // Utility Functions
+        const uploadFile = async (file, path) => {
+            try {
+                if (!storage) throw new Error("Storage not initialized");
+                const storageRef = storage.ref(path);
+                await storageRef.put(file);
+                return await storageRef.getDownloadURL();
+            } catch (error) {
+                console.error("File upload failed:", error);
+                throw error;
+            }
+        };
+
+        // Auth Context
+        const AuthContext = React.createContext();
+
+        const AuthProvider = ({ children }) => {
+            const [user, setUser] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+
+            React.useEffect(() => {
+                if (!auth) {
+                    console.error("Auth not initialized");
+                    setLoading(false);
+                    return;
+                }
+                const unsubscribe = auth.onAuthStateChanged(
+                    (user) => {
+                        setUser(user);
+                        setLoading(false);
+                    },
+                    (error) => {
+                        console.error("Auth state change error:", error);
+                        setLoading(false);
+                    }
+                );
+                return () => unsubscribe();
+            }, []);
+
+            return (
+                <AuthContext.Provider value={{ user, loading }}>
+                    {children}
+                </AuthContext.Provider>
+            );
+        };
+
+        // Register Component
+        const Register = () => {
+            const [form, setForm] = React.useState({
+                name: '',
+                email: '',
+                role: ''
+            });
+            const [password, setPassword] = React.useState('');
+            const [file, setFile] = React.useState(null);
+            const [error, setError] = React.useState('');
+            const navigate = useNavigate();
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+                if (!auth || !db || !storage) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const userCredential = await auth.createUserWithEmailAndPassword(form.email, password);
+                    const user = userCredential.user;
+                    let photoURL = '';
+                    if (file) {
+                        photoURL = await uploadFile(file, `user_photos/${user.uid}`);
+                    }
+                    await db.collection('users').doc(user.uid).set({
+                        ...form,
+                        photoURL,
+                        status: 'pending',
+                        createdAt: new Date()
+                    });
+                    await user.sendEmailVerification();
+                    alert('Registration successful! Please verify your email.');
+                    navigate('/login');
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
+                        <h2 className="text-2xl font-bold text-center">Team Member Registration</h2>
+                        {error && <p className="text-red-500">{error}</p>}
+                        <div className="space-y-6">
+                            <input
+                                type="text"
+                                value={form.name}
+                                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                placeholder="Name"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                placeholder="Email"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="text"
+                                value={form.role}
+                                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                                placeholder="Role"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setFile(e.target.files[0])}
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Password"
+                                className="w-full p-2 border rounded"
+                            />
+                            <button
+                                onClick={handleRegister}
+                                className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                            >
+                                Register
+                            </button>
+                            <p className="text-center">
+                                Already have an account? <Link to="/login" className="text-blue-600">Login</Link>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Login Component
+        const Login = () => {
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+            const navigate = useNavigate();
+            const { loading } = React.useContext(AuthContext);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                if (!auth || !db) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                    const userDoc = await db.collection('users').doc(userCredential.user.uid).get();
+                    if (!userDoc.exists || userDoc.data().status !== 'verified') {
+                        await auth.signOut();
+                        setError('Your account is not verified or does not exist.');
+                        return;
+                    }
+                    navigate('/dashboard');
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            if (loading) return <div className="text-center p-4">Loading...</div>;
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
+                        <h2 className="text-2xl font-bold text-center">Team Member Login</h2>
+                        {error && <p className="text-red-500">{error}</p>}
+                        <div className="space-y-6">
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Email"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Password"
+                                className="w-full p-2 border rounded"
+                            />
+                            <button
+                                onClick={handleLogin}
+                                className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                            >
+                                Login
+                            </button>
+                            <p className="text-center">
+                                New user? <Link to="/register" className="text-blue-600">Register</Link>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Cutting Upload Component
+        const CuttingUpload = () => {
+            const { user } = React.useContext(AuthContext);
+            const [form, setForm] = React.useState({
+                title: '',
+                description: '',
+                publicationDate: '',
+                newspaperName: ''
+            });
+            const [file, setFile] = React.useState(null);
+            const [error, setError] = React.useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!form.title || !form.publicationDate || !form.newspaperName || !file) {
+                    setError('Title, Publication Date, Newspaper Name, and Image are required');
+                    return;
+                }
+                if (!db || !storage) {
+                    setError("System not initialized");
+                    return;
+                }
+                try {
+                    const imageURL = await uploadFile(file, `cuttings/${user.uid}/${Date.now()}`);
+                    await db.collection('cuttings').add({
+                        ...form,
+                        imageURL,
+                        userId: user.uid,
+                        createdAt: new Date()
+                    });
+                    alert('Cutting uploaded successfully');
+                    setForm({
+                        title: '',
+                        description: '',
+                        publicationDate: '',
+                        newspaperName: ''
+                    });
+                    setFile(null);
+                    setError('');
+                } catch (err) {
+                    setError('Error uploading cutting: ' + err.message);
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <h2 className="text-2xl font-bold mb-4">Upload Newspaper Cutting</h2>
+                    {error && <p className="text-red-500">{error}</p>}
+                    <div className="space-y-4">
+                        <input
+                            type="text"
+                            value={form.title}
+                            onChange={(e) => setForm({ ...form, title: e.target.value })}
+                            placeholder="Headline/Title"
+                            className="w-full p-2 border rounded"
+                        />
+                        <textarea
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            placeholder="Short Description (Optional)"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="date"
+                            value={form.publicationDate}
+                            onChange={(e) => setForm({ ...form, publicationDate: e.target.value })}
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="text"
+                            value={form.newspaperName}
+                            onChange={(e) => setForm({ ...form, newspaperName: e.target.value })}
+                            placeholder="Newspaper Name"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="w-full p-2 border rounded"
+                        />
+                        <button
+                            onClick={handleSubmit}
+                            className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                        >
+                            Upload Cutting
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Cutting Slider Component
+        const CuttingSlider = () => {
+            const [cuttings, setCuttings] = React.useState([]);
+            const [isPaused, setIsPaused] = React.useState(false);
+            const sliderRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (!db) {
+                    console.error("Firestore not initialized");
+                    return;
+                }
+                const unsubscribe = db.collection('cuttings')
+                    .orderBy('createdAt', 'desc')
+                    .limit(20)
+                    .onSnapshot(
+                        (snapshot) => {
+                            const cuttingsData = snapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            setCuttings(cuttingsData);
+                        },
+                        (error) => console.error("Cuttings fetch error:", error)
+                    );
+
+                // Auto-scroll logic (right-to-left)
+                const scrollInterval = setInterval(() => {
+                    if (!isPaused && sliderRef.current) {
+                        const { scrollLeft, clientWidth, scrollWidth } = sliderRef.current;
+                        if (scrollLeft <= 0) {
+                            sliderRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' });
+                        } else {
+                            sliderRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+                        }
+                    }
+                }, 3000);
+
+                return () => {
+                    unsubscribe();
+                    clearInterval(scrollInterval);
+                };
+            }, [isPaused]);
+
+            return (
+                <div
+                    className="bg-gray-800 text-white py-4 overflow-hidden"
+                    onMouseEnter={() => setIsPaused(true)}
+                    onMouseLeave={() => setIsPaused(false)}
+                >
+                    <div
+                        ref={sliderRef}
+                        className="flex space-x-4 overflow-x-auto scrollbar-hide"
+                        style={{ scrollBehavior: 'smooth' }}
+                    >
+                        {cuttings.map(cutting => (
+                            <Link
+                                key={cutting.id}
+                                to={`/cuttings/${cutting.newspaperName}/${cutting.publicationDate}`}
+                                className="flex-shrink-0 w-64 p-2 hover:bg-gray-700 transition"
+                            >
+                                <img
+                                    src={cutting.imageURL}
+                                    alt={cutting.title}
+                                    className="w-full h-40 object-cover rounded"
+                                />
+                                <p className="font-bold mt-2">{cutting.title}</p>
+                                <p className="text-sm">{cutting.newspaperName} - {cutting.publicationDate}</p>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // Cutting Detail View
+        const CuttingDetail = () => {
+            const { newspaperName, publicationDate } = useParams();
+            const [cuttings, setCuttings] = React.useState([]);
+            const [zoomedImage, setZoomedImage] = React.useState(null);
+
+            React.useEffect(() => {
+                if (!db) {
+                    console.error("Firestore not initialized");
+                    return;
+                }
+                const unsubscribe = db.collection('cuttings')
+                    .where('newspaperName', '==', newspaperName)
+                    .where('publicationDate', '==', publicationDate)
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(
+                        (snapshot) => {
+                            const cuttingsData = snapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            setCuttings(cuttingsData);
+                        },
+                        (error) => console.error("Cuttings fetch error:", error)
+                    );
+                return () => unsubscribe();
+            }, [newspaperName, publicationDate]);
+
+            const handleZoom = (imageURL) => {
+                setZoomedImage(imageURL);
+            };
+
+            const handleDownload = (imageURL, title) => {
+                const link = document.createElement('a');
+                link.href = imageURL;
+                link.download = `${title}.jpg`;
+                link.click();
+            };
+
+            return (
+                <div className="max-w-7xl mx-auto p-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold">
+                            Cuttings from {newspaperName} - {publicationDate}
+                        </h2>
+                        <Link to="/" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                            Back to Homepage
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {cuttings.map(cutting => (
+                            <div key={cutting.id} className="border p-4 rounded-lg">
+                                <img
+                                    src={cutting.imageURL}
+                                    alt={cutting.title}
+                                    className="w-full h-48 object-cover rounded cursor-pointer"
+                                    onClick={() => handleZoom(cutting.imageURL)}
+                                />
+                                <h3 className="text-lg font-semibold mt-2">{cutting.title}</h3>
+                                <p className="text-gray-600">{cutting.description}</p>
+                                <p className="text-sm text-gray-500">Newspaper: {cutting.newspaperName}</p>
+                                <p className="text-sm text-gray-500">Date: {cutting.publicationDate}</p>
+                                <button
+                                    onClick={() => handleDownload(cutting.imageURL, cutting.title)}
+                                    className="mt-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                                >
+                                    Download
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    {zoomedImage && (
+                        <div
+                            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+                            onClick={() => setZoomedImage(null)}
+                        >
+                            <img
+                                src={zoomedImage}
+                                alt="Zoomed cutting"
+                                className="max-w-full max-h-full"
+                            />
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Dashboard Component
+        const Dashboard = () => {
+            const { user, loading } = React.useContext(AuthContext);
+
+            if (loading) return <div className="text-center p-4">Loading...</div>;
+            if (!user) return <Login />;
+
+            return (
+                <div className="max-w-7xl mx-auto p-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold">Team Dashboard</h2>
+                        <button
+                            onClick={() => auth.signOut()}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                    <CuttingUpload />
+                </div>
+            );
+        };
+
+        // Error Boundary
+        class ErrorBoundary extends React.Component {
+            state = { error: null };
+            static getDerivedStateFromError(error) {
+                return { error: error.message };
+            }
+            render() {
+                if (this.state.error) {
+                    return <div className="text-center p-4 text-red-500">Error: {this.state.error}</div>;
+                }
+                return this.props.children;
+            }
+        }
+
+        // Main App Component
+        const App = () => {
+            return (
+                <BrowserRouter>
+                    <CuttingSlider />
+                    <Routes>
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/cuttings/:newspaperName/:publicationDate" element={<CuttingDetail />} />
+                        <Route path="/" element={<div className="text-center p-4">Welcome to Newspaper Cuttings</div>} />
+                    </Routes>
+                </BrowserRouter>
+            );
+        };
+
+        // Render
+        ReactDOM.render(
+            <ErrorBoundary>
+                <AuthProvider>
+                    <App />
+                </AuthProvider>
+            </ErrorBoundary>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
