@@ -1,0 +1,18 @@
+/* Import Tailwind CSS base, components, and utilities */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Custom utility to hide scrollbars cross-browser */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Custom styles for raised cards */
+.raised-card {
+  @apply bg-white border-2 border-[#064e03] shadow-md;
+}
