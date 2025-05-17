@@ -1,0 +1,414 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Affiliate Marketing Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Firebase Configuration
+        const firebaseConfig = {
+            // Replace with your Firebase config
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // Utility Functions
+        const uploadFile = async (file, path) => {
+            const storageRef = storage.ref(path);
+            await storageRef.put(file);
+            return await storageRef.getDownloadURL();
+        };
+
+        // Auth Context
+        const AuthContext = React.createContext();
+
+        const AuthProvider = ({ children }) => {
+            const [user, setUser] = React.useState(null);
+
+            React.useEffect(() => {
+                auth.onAuthStateChanged((user) => {
+                    setUser(user);
+                });
+            }, []);
+
+            return (
+                <AuthContext.Provider value={{ user }}>
+                    {children}
+                </AuthContext.Provider>
+            );
+        };
+
+        // Login Component
+        const Login = () => {
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                try {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+                try {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                    await auth.currentUser.sendEmailVerification();
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
+                        <h2 className="text-2xl font-bold text-center">Affiliate Platform</h2>
+                        {error && <p className="text-red-500">{error}</p>}
+                        <div className="space-y-6">
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Email"
+                                className="w-full p-2 border rounded"
+                            />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Password"
+                                className="w-full p-2 border rounded"
+                            />
+                            <div className="flex space-x-4">
+                                <button
+                                    onClick={handleLogin}
+                                    className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                                >
+                                    Login
+                                </button>
+                                <button
+                                    onClick={handleRegister}
+                                    className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                                >
+                                    Register
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Profile Component
+        const Profile = () => {
+            const { user } = React.useContext(AuthContext);
+            const [profile, setProfile] = React.useState({
+                name: '',
+                bio: '',
+                photoURL: ''
+            });
+            const [file, setFile] = React.useState(null);
+
+            React.useEffect(() => {
+                if (user) {
+                    db.collection('affiliates').doc(user.uid).get().then(doc => {
+                        if (doc.exists) {
+                            setProfile(doc.data());
+                        }
+                    });
+                }
+            }, [user]);
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                try {
+                    let photoURL = profile.photoURL;
+                    if (file) {
+                        photoURL = await uploadFile(file, `profile/${user.uid}`);
+                    }
+                    await db.collection('affiliates').doc(user.uid).set({
+                        ...profile,
+                        photoURL,
+                        email: user.email
+                    });
+                    alert('Profile updated successfully');
+                } catch (err) {
+                    alert('Error updating profile: ' + err.message);
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <h2 className="text-2xl font-bold mb-4">Profile</h2>
+                    <div className="space-y-4">
+                        <img
+                            src={profile.photoURL || 'https://via.placeholder.com/150'}
+                            alt="Profile"
+                            className="w-32 h-32 rounded-full mx-auto"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="text"
+                            value={profile.name}
+                            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                            placeholder="Full Name"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="email"
+                            value={user?.email}
+                            readOnly
+                            className="w-full p-2 border rounded bg-gray-100"
+                        />
+                        <textarea
+                            value={profile.bio}
+                            onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                            placeholder="Bio"
+                            className="w-full p-2 border rounded"
+                        />
+                        <button
+                            onClick={handleUpdate}
+                            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                        >
+                            Update Profile
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Product Upload Component
+        const ProductUpload = () => {
+            const { user } = React.useContext(AuthContext);
+            const [product, setProduct] = React.useState({
+                title: '',
+                description: '',
+                price: '',
+                affiliateLink: '',
+                imageURL: ''
+            });
+            const [file, setFile] = React.useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                try {
+                    let imageURL = '';
+                    if (file) {
+                        imageURL = await uploadFile(file, `products/${user.uid}/${Date.now()}`);
+                    }
+                    await db.collection('products').add({
+                        ...product,
+                        imageURL,
+                        userId: user.uid,
+                        clicks: 0,
+                        conversions: 0,
+                        commission: 0,
+                        createdAt: new Date()
+                    });
+                    alert('Product uploaded successfully');
+                    setProduct({ title: '', description: '', price: '', affiliateLink: '', imageURL: '' });
+                    setFile(null);
+                } catch (err) {
+                    alert('Error uploading product: ' + err.message);
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <h2 className="text-2xl font-bold mb-4">Upload Product</h2>
+                    <div className="space-y-4">
+                        <input
+                            type="text"
+                            value={product.title}
+                            onChange={(e) => setProduct({ ...product, title: e.target.value })}
+                            placeholder="Product Title"
+                            className="w-full p-2 border rounded"
+                        />
+                        <textarea
+                            value={product.description}
+                            onChange={(e) => setProduct({ ...product, description: e.target.value })}
+                            placeholder="Description"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="number"
+                            value={product.price}
+                            onChange={(e) => setProduct({ ...product, price: e.target.value })}
+                            placeholder="Price"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="url"
+                            value={product.affiliateLink}
+                            onChange={(e) => setProduct({ ...product, affiliateLink: e.target.value })}
+                            placeholder="Affiliate Link"
+                            className="w-full p-2 border rounded"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="w-full p-2 border rounded"
+                        />
+                        <button
+                            onClick={handleSubmit}
+                            className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+                        >
+                            Upload Product
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Dashboard Component
+        const Dashboard = () => {
+            const { user } = React.useContext(AuthContext);
+            const [products, setProducts] = React.useState([]);
+
+            React.useEffect(() => {
+                if (user) {
+                    return db.collection('products')
+                        .where('userId', '==', user.uid)
+                        .onSnapshot(snapshot => {
+                            const productsData = snapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            setProducts(productsData);
+                        });
+                }
+            }, [user]);
+
+            return (
+                <div className="max-w-7xl mx-auto p-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold">Affiliate Dashboard</h2>
+                        <button
+                            onClick={() => auth.signOut()}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Profile />
+                        <ProductUpload />
+                    </div>
+                    <div className="mt-8">
+                        <h3 className="text-xl font-bold mb-4">Your Products</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {products.map(product => (
+                                <div key={product.id} className="border p-4 rounded-lg">
+                                    <img
+                                        src={product.imageURL || 'https://via.placeholder.com/150'}
+                                        alt={product.title}
+                                        className="w-full h-48 object-cover rounded"
+                                    />
+                                    <h4 className="text-lg font-semibold mt-2">{product.title}</h4>
+                                    <p className="text-gray-600">{product.description}</p>
+                                    <p className="text-green-600 font-bold">${product.price}</p>
+                                    <p>Clicks: {product.clicks}</p>
+                                    <p>Conversions: {product.conversions}</p>
+                                    <p>Commission: ${product.commission}</p>
+                                    <a
+                                        href={product.affiliateLink}
+                                        target="_blank"
+                                        className="text-blue-600 hover:underline"
+                                    >
+                                        Affiliate Link
+                                    </a>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Main App Component
+        const App = () => {
+            const { user } = React.useContext(AuthContext);
+
+            return user ? <Dashboard /> : <Login />;
+        };
+
+        // Render
+        ReactDOM.render(
+            <AuthProvider>
+                <App />
+            </AuthProvider>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
