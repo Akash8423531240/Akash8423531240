@@ -1,0 +1,44 @@
+{
+  "name": "affiliateBank",
+  "version": "1.0.0",
+  "description": "A full-stack web application for books, affiliate marketing, dropshipping, news, and user management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "vite build",
+    "dev": "concurrently \"vite\" \"nodemon server.js\"",
+    "postinstall": "npm run build:css",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/output.css --minify"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.8.1",
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "nodemailer": "^6.9.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-ga4": "^2.1.0",
+    "react-router-dom": "^6.26.2",
+    "stripe": "^17.0.0",
+    "tailwindcss": "^3.4.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.0.1",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.0",
+    "nodemon": "^3.1.7",
+    "prettier": "^3.3.3",
+    "vite": "^5.4.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/affiliateBank.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
