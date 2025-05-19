@@ -6,49 +6,24 @@
   <title>ShivExa Global</title>
 
   <!-- Tailwind CSS via CDN -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css" rel="stylesheet" />
-
-  <!-- (ऐच्छिक) अपना कस्टम CSS अगर /css/styles.css सच-मुच मौजूद है -->
-  <!-- <link rel="stylesheet" href="/css/styles.css" /> -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css"
+    rel="stylesheet"
+  />
 </head>
 
 <body class="bg-gray-50 text-gray-900 antialiased">
 
-  <!-- ===== Header ===== -->
-  <header class="bg-white shadow">
-    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-      <h1 class="text-2xl font-bold">ShivExa Global</h1>
-      <nav class="space-x-4">
-        <a href="#" class="text-gray-600 hover:text-indigo-600">Home</a>
-        <a href="#" class="text-gray-600 hover:text-indigo-600">Books</a>
-        <a href="#" class="text-gray-600 hover:text-indigo-600">Deals</a>
-        <a href="#" class="text-gray-600 hover:text-indigo-600">News</a>
-      </nav>
-    </div>
-  </header>
+  <!-- ===== Header (JS से रेंडर होगा) ===== -->
+  <header id="header"></header>
 
-  <!-- ===== Main ===== -->
-  <main class="max-w-6xl mx-auto px-6 py-12 text-center">
-    <h2 class="text-4xl font-bold mb-4">Welcome to ShivExa Global</h2>
-    <p class="text-lg mb-8">Your one-stop hub for Books, Affiliate Deals & Breaking News.</p>
+  <!-- ===== Main container (JS से सेक्शन जुड़ेंगे) ===== -->
+  <main id="app"></main>
 
-    <a href="#"
-       class="inline-block bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition">
-      Explore Now
-    </a>
-  </main>
+  <!-- ===== Footer (JS से रेंडर होगा) ===== -->
+  <footer id="footer"></footer>
 
-  <!-- ===== Footer ===== -->
-  <footer class="border-t py-4 text-center text-sm text-gray-500">
-    © <span id="year"></span> ShivExa Global • All rights reserved
-  </footer>
-
-  <!-- ===== Inline JS ===== -->
-  <script>
-    //
-    document.getElementById('year').textContent = new Date().getFullYear();
-    console.log('ShivExa Global loaded');
-  </script>
-
+  <!-- ===== Master JS bundle: यह आपकी 44 फाइलें लोड करता है ===== -->
+  <script type="module" src="/assets/js/main.js"></script>
 </body>
 </html>
